@@ -13,6 +13,6 @@ Defense: 1v1, train against a baseline offense player
 Tycho's PacmanDQN implementation:
 * [PacmanDQN](https://github.com/tychovdo/PacmanDQN)
 
-Pac-man implementation by UC Berkeley:
-* [The Pac-man Projects - UC Berkeley](http://ai.berkeley.edu/project_overview.html) ([http://ai.berkeley.edu/project_overview.html](http://ai.berkeley.edu/project_overview.html))
+Pacman contest implementation by UC Berkeley:
+* [The Pac-man Projects - UC Berkeley](http://ai.berkeley.edu/contest) 
 
