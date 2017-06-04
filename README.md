@@ -14,5 +14,5 @@ Tycho's PacmanDQN implementation:
 * [PacmanDQN](https://github.com/tychovdo/PacmanDQN)
 
 Pacman contest implementation by UC Berkeley:
-* [The Pac-man Projects - UC Berkeley](http://ai.berkeley.edu/contest) 
+* [The Pacman Projects - UC Berkeley](http://ai.berkeley.edu/contest) 
 
