@@ -47,7 +47,7 @@ from DQN import *
 
 params = {
     # Model backups
-    'load_file': None,#'saves/model-5999_7',#'saves/model-29_1',
+    'load_file': 'saves/model-584736_996',
     'save_file': True,
     'save_interval': 1000,
 
@@ -74,8 +74,8 @@ params = {
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               # first = 'OffensiveDQNAgent', second = 'StandStillAgent', offense=True,model_file=None, numTraining=100000):
-               first = 'DefensiveDQNAgent', second = 'StandStillAgent',offense=False, model_file=None, numTraining=100000):
+               first = 'OffensiveDQNAgent', second = 'StandStillAgent', offense=True,model_file=None, numTraining=100000):
+               # first = 'DefensiveDQNAgent', second = 'StandStillAgent',offense=False, model_file=None, numTraining=100000):
     """
     This function should return a list of two agents that will form the
     team, initialized using firstIndex and secondIndex as their agent
@@ -144,6 +144,9 @@ class DQNAgent(CaptureAgent):
         self.display = None
         print("Initialise DQN Agent")
 
+        # Whether it is a offensive agent
+        self.offense = offense
+
 
         # Load parameters from user-given arguments
         self.params = params
@@ -153,7 +156,7 @@ class DQNAgent(CaptureAgent):
             self.params['width'] = self.params['width']/2
         self.params['height'] = 16 #layout.height
         self.params['num_training'] = numTraining
-        print self.params['num_training']
+        # print self.params['num_training']
         if model_file is not None:
             self.params['load_file'] = model_file
 
@@ -181,6 +184,8 @@ class DQNAgent(CaptureAgent):
         self.last_scores = deque()
 
     def registerInitialState(self, gameState):  # inspects the starting state
+
+        # print str(gameState)
 
         # Reset reward
         self.last_score = 0
@@ -218,11 +223,15 @@ class DQNAgent(CaptureAgent):
 
     def getMove(self, state):
         # Exploit / Explore
+        if self.offense:
+            stateMatrix = self.getStateMatrices(self.current_state)
+        else:
+            stateMatrix = self.getHalfMatrix(self.getStateMatrices(self.current_state))
         if np.random.rand() > self.params['eps']:
             # Exploit action
             self.Q_pred = self.qnet.sess.run(
                 self.qnet.y,
-                feed_dict={self.qnet.x: np.reshape(self.getHalfMatrix(self.getStateMatrices(self.current_state)) ,
+                feed_dict={self.qnet.x: np.reshape(stateMatrix ,
                                                    (1, self.params['width'], self.params['height'], 6)),
                            self.qnet.q_t: np.zeros(1),
                            self.qnet.actions: np.zeros((1, 4)),
@@ -495,7 +504,7 @@ class OffensiveDQNAgent(DQNAgent):
 
             # if pacman is eaten by ghost, dead
             if reward < -20:
-                self.last_reward = -500
+                self.last_reward = -100
                 self.log = 'Eaten by Ghost'
                 self.terminal = True
                 self.won = False
@@ -552,12 +561,17 @@ class OffensiveDQNAgent(DQNAgent):
                     self.log = 'Eat food'
                 # ate capsule
                 elif (x,y) in self.last_state.data.capsules:
-                    self.last_reward = 10.
+                    self.last_reward = 5.
                     self.log = 'Eat capsule'
+                # stop
+                elif self.last_state.getAgentPosition(self.index) == self.current_state.getAgentPosition(self.index):
+                    self.last_reward = -10.
+                    self.log = 'Stop'
                 # travel
                 else:
                     self.last_reward = -1.
                     self.log = 'Travel'
+
 
             # if (self.terminal and self.won):
                 # self.last_reward = 100.
