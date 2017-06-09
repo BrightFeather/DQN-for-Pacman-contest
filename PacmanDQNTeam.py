@@ -37,6 +37,7 @@ import random
 import util
 import time
 import sys
+import re
 
 # Replay memory
 from collections import deque
@@ -47,9 +48,9 @@ from DQN import *
 
 params = {
     # Model backups
-    'load_file': 'saves/model-584736_996',
+    'load_file': None,
     'save_file': True,
-    'save_interval': 1000,
+    'save_interval': 2000,
 
     # Training parameters
     'train_start': 50000, #5000,  # Episodes before training starts
@@ -74,8 +75,8 @@ params = {
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'OffensiveDQNAgent', second = 'StandStillAgent', offense=True,model_file=None, numTraining=100000):
-               # first = 'DefensiveDQNAgent', second = 'StandStillAgent',offense=False, model_file=None, numTraining=100000):
+               # first = 'OffensiveDQNAgent', second = 'StandStillAgent', offense=True,model_file=None, numTraining=100000):
+               first = 'DefensiveDQNAgent', second = 'StandStillAgent', offense=False, model_file=None, numTraining=100000):
     """
     This function should return a list of two agents that will form the
     team, initialized using firstIndex and secondIndex as their agent
@@ -90,7 +91,7 @@ def createTeam(firstIndex, secondIndex, isRed,
     any extra arguments, so you should make sure that the default
     behavior is what you want for the nightly contest.
     """
-    return [eval(first)(firstIndex,numTraining,offense=offense,model_file=model_file), eval(second)(secondIndex)]
+    return [eval(first)(firstIndex,numTraining, offense=offense,model_file=model_file), eval(second)(secondIndex)]
 
 ##########
 # Agents #
@@ -151,10 +152,13 @@ class DQNAgent(CaptureAgent):
         # Load parameters from user-given arguments
         self.params = params
 
-        self.params['width'] = 32 #self.layout.width# 32 #layout.width
-        if not offense:
-            self.params['width'] = self.params['width']/2
-        self.params['height'] = 16 #layout.height
+        self.params['width'] = 32 #self.layout.width #layout.width
+        self.params['height'] = 16  # layout.height
+        if offense:
+            self.params['depth'] = 6
+        else:
+            self.params['depth'] = 2
+
         self.params['num_training'] = numTraining
         # print self.params['num_training']
         if model_file is not None:
@@ -175,7 +179,16 @@ class DQNAgent(CaptureAgent):
         self.cnt = self.qnet.sess.run(self.qnet.global_step)
         self.local_cnt = 0
 
-        self.numeps = 0
+        if model_file is not None:
+            tmp = re.findall('-(\d+)',model_file)
+            self.numeps = eval(tmp[0])
+        elif self.params['load_file'] is not None:
+            tmp = re.findall('-(\d+)', self.params['load_file'])
+            self.numeps = eval(tmp[0])
+        else:
+            self.numeps = 0
+        # self.numeps = 0 if model_file == None else
+
         self.last_score = 0
         self.s = time.time()
         self.last_reward = 0.
@@ -226,13 +239,13 @@ class DQNAgent(CaptureAgent):
         if self.offense:
             stateMatrix = self.getStateMatrices(self.current_state)
         else:
-            stateMatrix = self.getHalfMatrix(self.getStateMatrices(self.current_state))
+            stateMatrix = self.getStateMatrices(self.current_state)
         if np.random.rand() > self.params['eps']:
             # Exploit action
             self.Q_pred = self.qnet.sess.run(
                 self.qnet.y,
                 feed_dict={self.qnet.x: np.reshape(stateMatrix ,
-                                                   (1, self.params['width'], self.params['height'], 6)),
+                                                   (1, self.params['width'], self.params['height'], self.params['depth'])),
                            self.qnet.q_t: np.zeros(1),
                            self.qnet.actions: np.zeros((1, 4)),
                            self.qnet.terminals: np.zeros(1),
@@ -351,6 +364,38 @@ class DQNAgent(CaptureAgent):
     def getStateMatrices(self, state):
         """ Return wall, ghosts, food, capsules matrices """
 
+        def getEnemyMatrix(self, state):
+            width, height = state.data.layout.width, state.data.layout.height
+            matrix = np.zeros((height, width))
+            matrix.dtype = int
+            if self.red:
+                enemyIndices = state.blueTeam
+            else:
+                enemyIndices = state.redTeam
+            for i in xrange(len(state.data.agentStates)):
+                if i in enemyIndices:
+                    agentState = state.data.agentStates[i]
+                    pos = agentState.configuration.getPosition()
+                    cell = 1
+                    matrix[-1 - int(pos[1])][int(pos[0])] = cell
+            return matrix
+
+        def getAllyMatrix(self, state):
+            width, height = state.data.layout.width, state.data.layout.height
+            matrix = np.zeros((height, width))
+            matrix.dtype = int
+            if self.red:
+                allyIndices = state.redTeam
+            else:
+                allyIndices = state.blueTeam
+            for i in xrange(len(state.data.agentStates)):
+                if i in allyIndices:
+                    agentState = state.data.agentStates[i]
+                    pos = agentState.configuration.getPosition()
+                    cell = 1
+                    matrix[-1 - int(pos[1])][int(pos[0])] = cell
+            return matrix
+
         def getWallMatrix(state):
             """ Return matrix with wall coordinates set to 1 """
             width, height = state.data.layout.width, state.data.layout.height
@@ -441,16 +486,31 @@ class DQNAgent(CaptureAgent):
         # wall, pacman, ghost, food and capsule matrices
         width, height = state.data.layout.width, state.data.layout.height
         # width, height = self.params['width'], self.params['height']
-        observation = np.zeros((6, height, width))
 
-        observation[0] = getWallMatrix(state)
-        observation[1] = getPacmanMatrix(state)
-        observation[2] = getGhostMatrix(state)
-        observation[3] = getScaredGhostMatrix(state)
-        observation[4] = getFoodMatrix(state)
-        observation[5] = getCapsulesMatrix(state)
+        if self.offense:
+            observation = np.zeros((6, height, width))
 
-        observation = np.swapaxes(observation, 0, 2)
+            observation[0] = getWallMatrix(state)
+            observation[1] = getAllyMatrix(self,state)
+            observation[2] = getGhostMatrix(state)
+            observation[3] = getScaredGhostMatrix(state)
+            observation[4] = getFoodMatrix(state)
+            observation[5] = getCapsulesMatrix(state)
+
+            observation = np.swapaxes(observation, 0, 2)
+
+        else:
+            observation = np.zeros((2, height, width))
+
+            observation[0] = getWallMatrix(state)
+            observation[1] = getEnemyMatrix(self,state)
+            # observation[2] = getGhostMatrix(state)
+            # observation[3] = getScaredGhostMatrix(state)
+            # observation[4] = getFoodMatrix(state)
+            # observation[5] = getCapsulesMatrix(state)
+
+            observation = np.swapaxes(observation, 0, 2)
+
 
         return observation
 
@@ -610,12 +670,12 @@ class DefensiveDQNAgent(DQNAgent):
     # def __init__(self, index, numTraining, model_file, timeForComputing = .1 ):
     #     DQNAgent.__init__(self, index, numTraining, model_file=None, timeForComputing = .1 )
     #     self.params['width']= self.params['width']/2
-    def getHalfMatrix(self,matrix):
-        layers, height, width = matrix.shape
-        if self.red:
-            return matrix[:,:,:width/2]
-        else:
-            return matrix[:,:,width/2:]
+    # def getHalfMatrix(self,matrix):
+    #     layers, height, width = matrix.shape
+    #     if self.red:
+    #         return matrix[:,:,:width/2]
+    #     else:
+    #         return matrix[:,:,width/2:]
     def chooseAction(self, state):
         move = self.getMove(state)
 
@@ -647,6 +707,7 @@ class DefensiveDQNAgent(DQNAgent):
             Defensive agent:
             1. eat opponent: big positive reward(+100)
             2. travel: small negative reward(-1)
+            3. stop: medium negative reward(-10)
             '''
             agentPosition = state.getAgentPosition(self.index)
 #             # Process current experience reward
@@ -661,14 +722,19 @@ class DefensiveDQNAgent(DQNAgent):
                     pacmanPosition = otherState.getPosition()
                     if pacmanPosition == None: continue
                     if manhattanDistance(agentPosition, otherState.getPosition()) <= capture.COLLISION_TOLERANCE:
-                        if state.scaredTimer <= 0:
+                        if state.data.agentStates[self.index].scaredTimer <= 0:
                             PacmanEaten = True
-
+            # Eat a pacman
             if PacmanEaten == True:
                 self.last_reward = 500.
-                self.log = 'Eat Pacman!'
+                self.log = 'Eat Pacman! Yeah!'
                 self.terminal = True
                 self.won = True
+            # stop
+            elif self.last_state.getAgentPosition(self.index) == self.current_state.getAgentPosition(self.index):
+                self.last_reward = -10.
+                self.log = 'Stop'
+            #  travel
             else:
                 self.last_reward = -1.
                 self.log = 'Travel'
@@ -685,8 +751,8 @@ class DefensiveDQNAgent(DQNAgent):
             if self.red:
                 # tmp = self.getStateMatrices(self.last_state)
                 # tmp1 = self.getHalfMatrix(tmp)
-                experience = (self.getHalfMatrix(self.getStateMatrices(self.last_state)), float(self.last_reward),\
-                              self.last_action, self.getHalfMatrix(self.getStateMatrices(self.current_state)), self.terminal)
+                experience = (self.getStateMatrices(self.last_state), float(self.last_reward),\
+                              self.last_action, self.getStateMatrices(self.current_state), self.terminal)
             self.replay_mem.append(experience)
             if len(self.replay_mem) > self.params['mem_size']:
                 self.replay_mem.popleft()
