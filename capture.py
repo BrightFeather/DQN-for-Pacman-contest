@@ -802,7 +802,7 @@ def readCommand( argv ):
   parser.add_option('-i', '--time', type='int', dest='time',
                     help=default('TIME limit of a game in moves'), default=18000, metavar='TIME')
   parser.add_option('-n', '--numGames', type='int',
-                    help=default('Number of games to play'), default=1000)  # default = 1
+                    help=default('Number of games to play'), default=1)  # default = 1
   parser.add_option('-f', '--fixRandomSeed', action='store_true',
                     help='Fixes the random seed to always play the same game', default=False)
   parser.add_option('--record', action='store_true',
@@ -810,7 +810,7 @@ def readCommand( argv ):
   parser.add_option('--replay', default=None,
                     help='Replays a recorded game file.')
   parser.add_option('-x', '--numTraining', dest='numTraining', type='int',
-                    help=default('How many episodes are training (suppresses output)'), default=5000) # default = 0
+                    help=default('How many episodes are training (suppresses output)'), default=0) # default = 0
   parser.add_option('-c', '--catchExceptions', action='store_true', default=False,
                     help='Catch exceptions and enforce time limits')
   parser.add_option('-m','--model_file', dest='model_file', type='str',
